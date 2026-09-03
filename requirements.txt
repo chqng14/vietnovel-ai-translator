@@ -1,0 +1,37 @@
+# Novel Translator — Dependencies
+# Python 3.14+
+
+# ── PyTorch ─────────────────────────────────────────────
+# KHÔNG cài torch từ đây. Cài trước từ index CUDA, nếu không pip sẽ
+# kéo về bản CPU-only và toàn bộ phần dịch chạy trên CPU (chậm hàng chục lần):
+#     pip install torch --index-url https://download.pytorch.org/whl/cu126
+# torch>=2.13.0
+
+# AI / ML
+transformers>=5.0.0
+accelerate>=1.0.0          # cần cho low_cpu_mem_usage / device_map khi nạp model
+
+# Web Framework
+fastapi>=0.141.0
+uvicorn[standard]>=0.52.0
+sse-starlette>=3.4.0
+aiofiles>=25.0.0
+
+# Web Scraping
+beautifulsoup4>=4.12.0
+requests>=2.31.0
+lxml>=5.0.0
+cssselect>=1.5.0
+
+# EPUB Generation
+ebooklib>=0.18
+
+# Utilities
+pydantic>=2.9.0
+
+# ── Tuỳ chọn: nén model 4-bit ───────────────────────────
+# Bắt buộc nếu GPU dưới 6GB VRAM (VD: GTX 1650 4GB). Model 1.7B ở fp16 nặng
+# ~3.8GB, gần lấp kín card 4GB → driver Windows tràn sang RAM hệ thống và
+# tốc độ dịch sụt thảm hại. Nén 4-bit đưa model về ~1.4GB.
+#     pip install bitsandbytes
+# bitsandbytes>=0.45.0

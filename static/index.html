@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<meta name="description"
+		content="Ứng dụng dịch truyện web tự động sang Tiếng Việt bằng AI NiuTrans. Hỗ trợ Witch Cult, Syosetu, RoyalRoad và xuất EPUB/Markdown.">
+	<title>Novel Translator — Dịch Truyện AI</title>
+	<link rel="stylesheet" href="style.css">
+	<link rel="icon"
+		href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📖</text></svg>">
+</head>
+
+<body>
+	<div id="app">
+		<!-- ═══════ HEADER ═══════ -->
+		<header class="header">
+			<div class="header-brand">
+				<div class="header-logo">📖</div>
+				<div>
+					<div class="header-title">Novel Translator</div>
+					<div class="header-subtitle">Dịch truyện tự động bằng AI — NiuTrans/LMT-60-1.7B</div>
+				</div>
+			</div>
+			<div class="header-actions">
+				<button class="btn btn-secondary btn-sm" id="btn-glossary-toggle" onclick="toggleGlossary()"> 📚 Thuật
+					ngữ <span class="glossary-count" id="glossary-count">0</span>
+				</button>
+			</div>
+		</header>
+		<!-- ═══════ INPUT SECTION ═══════ -->
+		<section class="input-section glass-card" id="input-section">
+			<div class="card-header">
+				<div class="card-title"><span class="icon">✏️</span> Nhập nội dung</div>
+			</div>
+			<!-- Tabs: URL / Text -->
+			<div class="input-tabs"
+				style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; background: transparent; padding: 0;">
+				<div
+					style="display: flex; gap: 4px; background: var(--bg-glass); border-radius: var(--radius-md); padding: 4px; width: fit-content;">
+					<button class="input-tab active" data-tab="url" onclick="switchTab('url')">🔗 Từ URL</button>
+					<button class="input-tab" data-tab="text" onclick="switchTab('text')">📝 Dán văn bản</button>
+				</div>
+				<label class="field-inline" for="select-model">
+					<span class="field-label">🤖 Model dịch</span>
+					<select class="input-field" id="select-model" style="max-width: 260px;"
+						title="Lần dịch đầu tiên sẽ mất vài phút để nạp model vào GPU">
+						<option value="NiuTrans/LMT-60-1.7B">NiuTrans/LMT-60-1.7B — khuyên dùng</option>
+						<option value="deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B">DeepSeek-R1-Distill-1.5B</option>
+					</select>
+				</label>
+			</div>
+			<!-- URL Input -->
+			<div class="input-panel active" id="panel-url">
+				<div class="input-group">
+					<input type="url" class="input-field" id="input-url"
+						placeholder="Dán link chương truyện — VD: https://witchculttranslation.com/..."
+						spellcheck="false">
+					<button class="btn btn-primary" id="btn-scrape" onclick="handleScrape()">
+						<span class="spinner hidden" id="spinner-scrape"></span> 🔍 Trích xuất </button>
+				</div>
+				<div class="text-sm text-muted mt-8"> Hỗ trợ: Witch Cult Translations, Syosetu, Kakuyomu,
+					RoyalRoad, và bất kỳ trang HTML nào — ngôn ngữ gốc được nhận diện tự động. </div>
+			</div>
+			<!-- Text Input -->
+			<div class="input-panel" id="panel-text">
+				<div class="input-group" style="flex-direction: column;">
+					<input type="text" class="input-field" id="input-title" placeholder="Tiêu đề chương (tùy chọn)">
+					<textarea class="input-field" id="input-text"
+						placeholder="Dán nội dung truyện cần dịch vào đây...&#10;&#10;Mỗi đoạn văn cách nhau bởi một dòng trống."></textarea>
+					<div class="flex gap-8" style="align-items: center; flex-wrap: wrap;">
+						<label class="field-inline" for="input-lang">
+							<span class="field-label">🌐 Ngôn ngữ gốc</span>
+							<select class="input-field" id="input-lang" style="max-width: 220px;">
+								<option value="en">Tiếng Anh → Tiếng Việt</option>
+								<option value="ja">Tiếng Nhật → Tiếng Việt</option>
+							</select>
+						</label>
+						<button class="btn btn-primary" id="btn-parse-text" onclick="handleParseText()">
+							<span class="spinner hidden" id="spinner-parse"></span> 📋 Xử lý & Dịch </button>
+					</div>
+				</div>
+			</div>
+		</section>
+		<!-- ═══════ GLOSSARY SECTION ═══════ -->
+		<section class="glossary-section glass-card" id="glossary-section" style="display: none;">
+			<div class="card-header glossary-toggle" onclick="toggleGlossary()">
+				<div class="card-title"><span class="icon">📚</span> Quản lý Thuật ngữ</div>
+				<span class="text-muted">▼</span>
+			</div>
+			<div class="glossary-body open" id="glossary-body">
+				<!-- Add form -->
+				<div class="glossary-add-form">
+					<input type="text" class="input-field" id="glossary-source" placeholder="Thuật ngữ gốc (EN/JA)"
+						style="flex: 1;">
+					<input type="text" class="input-field" id="glossary-target" placeholder="Thuật ngữ dịch (VI)"
+						style="flex: 1;">
+					<button class="btn btn-primary btn-sm" onclick="addGlossaryEntry()">➕ Thêm</button>
+				</div>
+				<!-- Actions -->
+				<div class="glossary-actions">
+					<button class="btn btn-secondary btn-sm" onclick="importGlossary()">📥 Import</button>
+					<button class="btn btn-secondary btn-sm" onclick="exportGlossary('json')">📤 Export JSON</button>
+					<button class="btn btn-secondary btn-sm" onclick="exportGlossary('txt')">📤 Export TXT</button>
+					<button class="btn btn-danger btn-sm" onclick="clearGlossary()">🗑️ Xóa tất cả</button>
+					<input type="file" id="glossary-file-input" accept=".json,.txt" style="display:none;"
+						onchange="handleGlossaryImport(event)">
+				</div>
+				<!-- Table -->
+				<div style="max-height: 300px; overflow-y: auto;">
+					<table class="glossary-table" id="glossary-table">
+						<thead>
+							<tr>
+								<th>Thuật ngữ gốc</th>
+								<th>Thuật ngữ dịch</th>
+								<th style="width: 60px;"></th>
+							</tr>
+						</thead>
+						<tbody id="glossary-tbody">
+							<tr>
+								<td colspan="3" class="text-muted text-center" style="padding: 20px;">Chưa có thuật ngữ
+									nào</td>
+							</tr>
+						</tbody>
+					</table>
+				</div>
+			</div>
+		</section>
+		<!-- ═══════ PROGRESS SECTION ═══════ -->
+		<section class="progress-section glass-card" id="progress-section">
+			<div class="card-header">
+				<div class="card-title">
+					<span class="icon">⚡</span> Tiến độ dịch <span class="status-badge running" id="status-badge">
+						<span class="status-dot"></span>
+						<span id="status-text">Đang dịch...</span>
+					</span>
+				</div>
+				<div style="font-family: var(--font-mono); font-size: 0.9rem; font-weight: 700; color: var(--text-accent);"
+					id="progress-percent">0%</div>
+			</div>
+			<div class="progress-bar-track">
+				<div class="progress-bar-fill" id="progress-bar" style="width: 0%;"></div>
+			</div>
+			<div class="progress-stats">
+				<div class="progress-stat">📝 <span class="value" id="stat-completed">0</span> / <span
+						id="stat-total">0</span> đoạn</div>
+				<div class="progress-stat">⚡ <span class="value" id="stat-speed">0</span> đoạn/giây</div>
+				<div class="progress-stat">⏱️ Còn lại: <span class="value" id="stat-eta">--:--</span></div>
+			</div>
+			<div class="progress-controls">
+				<button class="btn btn-warning btn-sm" id="btn-pause" onclick="pauseTranslation()">⏸️ Tạm dừng</button>
+				<button class="btn btn-success btn-sm hidden" id="btn-resume" onclick="resumeTranslation()">▶️ Tiếp
+					tục</button>
+				<button class="btn btn-danger btn-sm" id="btn-cancel" onclick="cancelTranslation()">⏹️ Hủy</button>
+			</div>
+		</section>
+		<!-- ═══════ TRANSLATION DUAL PANE ═══════ -->
+		<section class="translation-section" id="translation-section">
+			<div class="view-tabs">
+				<button class="view-tab active" data-view="compare" onclick="switchView('compare')">⇄ Đối
+					chiếu</button>
+				<button class="view-tab" data-view="preview" onclick="switchView('preview')">📖 Đọc bản dịch</button>
+				<div class="view-tabs-spacer"></div>
+				<span class="view-meta" id="view-meta"></span>
+				<button class="btn btn-secondary btn-sm" onclick="copyPreview()"
+					title="Sao chép toàn bộ bản dịch đã có">📋 Sao chép</button>
+			</div>
+			<div class="glass-card view-panel active" id="view-compare" style="padding: 0; overflow: hidden;">
+				<div class="dual-pane">
+					<!-- Original Pane -->
+					<div class="pane">
+						<div class="pane-header"> 📄 Nguyên tác <span class="lang-badge"
+								id="source-lang-badge">EN</span>
+						</div>
+						<div class="pane-content" id="pane-original"></div>
+					</div>
+					<!-- Translated Pane -->
+					<div class="pane">
+						<div class="pane-header"> 🇻🇳 Bản dịch Tiếng Việt <span class="lang-badge"
+								style="background: linear-gradient(135deg, #22c55e, #16a34a);">VI</span>
+						</div>
+						<div class="pane-content" id="pane-translated"></div>
+					</div>
+				</div>
+			</div>
+			<div class="glass-card view-panel" id="view-preview" style="padding: 0; overflow: hidden;">
+				<div class="preview-content" id="preview-content"></div>
+			</div>
+		</section>
+		<!-- ═══════ EXPORT SECTION ═══════ -->
+		<section class="export-section glass-card" id="export-section">
+			<div class="card-header">
+				<div class="card-title"><span class="icon">📦</span> Xuất bản dịch</div>
+			</div>
+			<div class="export-buttons">
+				<button class="export-btn" onclick="exportFile('md')">
+					<span class="format-icon">📝</span>
+					<span class="format-name">Markdown</span>
+					<span class="format-desc">Obsidian / Notion</span>
+				</button>
+				<button class="export-btn" onclick="exportFile('epub')">
+					<span class="format-icon">📚</span>
+					<span class="format-name">EPUB</span>
+					<span class="format-desc">Kindle / Kobo / Boox</span>
+				</button>
+				<button class="export-btn" onclick="exportFile('txt')">
+					<span class="format-icon">📄</span>
+					<span class="format-name">TXT</span>
+					<span class="format-desc">Plain Text</span>
+				</button>
+			</div>
+			<div class="export-option">
+				<input type="checkbox" id="export-bilingual">
+				<label for="export-bilingual">Xuất song ngữ (nguyên tác + bản dịch)</label>
+			</div>
+		</section>
+		<!-- ═══════ FOOTER ═══════ -->
+		<footer class="footer"> Novel Translator v1.0 — Powered by <a href="https://huggingface.co/NiuTrans/LMT-60-1.7B"
+				target="_blank">NiuTrans/LMT-60-1.7B</a> &nbsp;•&nbsp; GPU Accelerated (CUDA) </footer>
+	</div>
+	<!-- Toast Container -->
+	<div class="toast-container" id="toast-container"></div>
+	<script src="app.js"></script>
+</body>
+
+</html>
