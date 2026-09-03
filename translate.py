@@ -10,7 +10,11 @@ import time
 
 from scraper import scrape_chapter, parse_direct_text
 from glossary_manager import GlossaryManager
-from translate_engine import TranslationEngine, DEFAULT_MODEL
+from translate_engine import (
+    TranslationEngine,
+    DEFAULT_MODEL,
+    DEEP_TRANSLATOR_GOOGLE,
+)
 from exporter import export_markdown, export_epub, export_txt
 
 
@@ -53,8 +57,14 @@ Ví dụ:
     parser.add_argument("--bilingual", action="store_true",
                         help="Xuất song ngữ (nguyên tác + bản dịch)")
     parser.add_argument("--title", help="Tiêu đề chương (cho --text và --file)")
-    parser.add_argument("--model", default=DEFAULT_MODEL, 
-                        help="Tên model dịch (mặc định: NiuTrans/LMT-60-1.7B)")
+    parser.add_argument(
+        "--model",
+        default=DEFAULT_MODEL,
+        help=(
+            "Model/provider dịch. Dùng 'deep-translator/google' để dịch qua "
+            "Google Translate mà không cần GPU"
+        ),
+    )
 
     args = parser.parse_args()
 
@@ -113,8 +123,13 @@ Ví dụ:
     total = len(chapter.paragraphs)
     translated = []
 
-    # Nạp model trước để thanh tiến độ không đứng im hàng phút đầu tiên
-    print("  ⏳ Đang nạp model...", end="", flush=True)
+    # Chuẩn bị model hoặc thư viện dịch trước khi bắt đầu.
+    preparing = (
+        "Đang kết nối Google Translate..."
+        if args.model == DEEP_TRANSLATOR_GOOGLE
+        else "Đang nạp model..."
+    )
+    print(f"  ⏳ {preparing}", end="", flush=True)
     engine._load_model(args.model)
     print(" xong!")
     start_time = time.time()

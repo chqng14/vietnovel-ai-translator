@@ -11,11 +11,15 @@
 transformers>=5.0.0
 accelerate>=1.0.0          # cần cho low_cpu_mem_usage / device_map khi nạp model
 
+# Dịch qua Google Translate, không cần GPU hoặc model local
+deep-translator>=1.11.4
+
 # Web Framework
 fastapi>=0.141.0
 uvicorn[standard]>=0.52.0
 sse-starlette>=3.4.0
 aiofiles>=25.0.0
+python-multipart>=0.0.20   # cần cho upload/import glossary
 
 # Web Scraping
 beautifulsoup4>=4.12.0

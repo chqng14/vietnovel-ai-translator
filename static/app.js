@@ -358,7 +358,7 @@ function handleProgressUpdate(data) {
   if (status === 'loading') {
     updateStatusBadge('running', message || 'Đang nạp model...');
     showToast(
-      message || 'Đang nạp model vào GPU — lần chạy đầu có thể mất vài phút.',
+      message || 'Đang chuẩn bị công cụ dịch...',
       'info',
       10000
     );
@@ -735,17 +735,36 @@ async function exportFile(fmt) {
   }
 
   const bilingual = document.getElementById('export-bilingual').checked;
+  const defaultName = state.title || 'ban_dich';
+  let requestedName = window.prompt(
+    `Đặt tên cho file ${fmt.toUpperCase()}:`,
+    defaultName
+  );
+
+  if (requestedName === null) return;
+  requestedName = requestedName.trim();
+  if (!requestedName) {
+    showToast('Tên file không được để trống', 'warning');
+    return;
+  }
+
+  const extensionPattern = new RegExp(`\\.${fmt}$`, 'i');
+  requestedName = requestedName.replace(extensionPattern, '');
+  const query = new URLSearchParams({
+    bilingual: String(bilingual),
+    filename: requestedName,
+  });
 
   try {
     showToast(`Đang tạo file ${fmt.toUpperCase()}...`, 'info');
-    const res = await fetch(`${API_BASE}/api/export/${state.taskId}/${fmt}?bilingual=${bilingual}`);
+    const res = await fetch(`${API_BASE}/api/export/${state.taskId}/${fmt}?${query}`);
 
     if (!res.ok) {
       throw new Error('Export failed');
     }
 
     const blob = await res.blob();
-    const filename = getFilenameFromResponse(res) || `${sanitizeFilename(state.title)}.${fmt}`;
+    const filename = getFilenameFromResponse(res) || `${sanitizeFilename(requestedName)}.${fmt}`;
     downloadBlob(blob, filename);
 
     showToast(`✅ Đã tải file ${filename}`, 'success');
@@ -782,6 +801,14 @@ function sanitizeFilename(name) {
 function getFilenameFromResponse(res) {
   const cd = res.headers.get('content-disposition');
   if (!cd) return null;
+  const utf8Match = cd.match(/filename\*=UTF-8''([^;]+)/i);
+  if (utf8Match) {
+    try {
+      return decodeURIComponent(utf8Match[1]);
+    } catch (_) {
+      return utf8Match[1];
+    }
+  }
   const match = cd.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
   return match ? match[1].replace(/['"]/g, '') : null;
 }
@@ -847,7 +874,33 @@ document.addEventListener('keydown', (e) => {
 // ──────────────────────────────────────────────
 //  Init
 // ──────────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', () => {
+async function loadRuntimeConfig() {
+  try {
+    const config = await apiGet('/api/config');
+    const select = document.getElementById('select-model');
+
+    select.querySelectorAll('[data-runtime="ai"]').forEach(option => {
+      option.disabled = !config.ai_available;
+    });
+    select.querySelectorAll('[data-runtime="library"]').forEach(option => {
+      option.disabled = !config.deep_translator_available;
+    });
+
+    const defaultOption = Array.from(select.options).find(
+      option => option.value === config.default_provider && !option.disabled
+    );
+    if (defaultOption) select.value = defaultOption.value;
+
+    if (!config.ai_available && config.deep_translator_available) {
+      select.title = 'AI local chưa được cài; Google Translate được chọn mặc định.';
+    }
+  } catch (error) {
+    console.warn('Không đọc được cấu hình provider:', error);
+  }
+}
+
+document.addEventListener('DOMContentLoaded', async () => {
+  await loadRuntimeConfig();
   loadGlossary();
   console.log('📖 Novel Translator ready');
 });

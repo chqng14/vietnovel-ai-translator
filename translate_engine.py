@@ -1,6 +1,6 @@
 """
 translate_engine.py — Động cơ Dịch thuật
-Quản lý model (Qwen3 CausalLM như NiuTrans/LMT-60, hoặc Seq2Seq), dịch theo batch,
+Quản lý model AI hoặc dịch vụ Google qua deep-translator, dịch theo batch,
 hỗ trợ Pause/Resume/Cancel, cache, và stream tiến độ.
 
 Tối ưu hiệu năng chính:
@@ -13,6 +13,7 @@ Tối ưu hiệu năng chính:
 """
 
 import asyncio
+import importlib.util
 import re
 import threading
 import time
@@ -21,13 +22,22 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import AsyncGenerator, Optional
 
-import torch
-from transformers import (
-    AutoConfig,
-    AutoTokenizer,
-    AutoModelForCausalLM,
-    AutoModelForSeq2SeqLM,
-)
+try:
+    import torch
+    from transformers import (
+        AutoConfig,
+        AutoTokenizer,
+        AutoModelForCausalLM,
+        AutoModelForSeq2SeqLM,
+    )
+except ImportError:
+    # Chế độ deep-translator không cần PyTorch/Transformers.
+    torch = None
+    AutoConfig = AutoTokenizer = None
+    AutoModelForCausalLM = AutoModelForSeq2SeqLM = None
+
+AI_RUNTIME_AVAILABLE = torch is not None and AutoConfig is not None
+DEEP_TRANSLATOR_AVAILABLE = importlib.util.find_spec("deep_translator") is not None
 
 from glossary_manager import GlossaryManager
 
@@ -36,6 +46,14 @@ from glossary_manager import GlossaryManager
 #  Cấu hình
 # ──────────────────────────────────────────────
 DEFAULT_MODEL = "NiuTrans/LMT-60-1.7B"
+DEEP_TRANSLATOR_GOOGLE = "deep-translator/google"
+
+DEEP_TRANSLATOR_SOURCE_LANGS = {
+    "en": "en",
+    "ja": "ja",
+    "zh": "zh-CN",
+    "ko": "ko",
+}
 
 # Số token tối đa cho phần input của một đoạn
 MAX_INPUT_TOKENS = 768
@@ -157,7 +175,7 @@ class TranslationTask:
 #  Translation Engine
 # ──────────────────────────────────────────────
 class TranslationEngine:
-    """Engine dịch thuật hỗ trợ model CausalLM (Qwen3/DeepSeek) và Seq2Seq."""
+    """Engine hỗ trợ model AI và Google Translate qua deep-translator."""
 
     def __init__(
         self,
@@ -175,8 +193,12 @@ class TranslationEngine:
         self._supports_thinking_flag = False
         self._load_lock = threading.Lock()
 
-        self._device = "cuda" if torch.cuda.is_available() else "cpu"
-        self._dtype = torch.float16 if self._device == "cuda" else torch.float32
+        self._device = "cuda" if torch and torch.cuda.is_available() else "cpu"
+        self._dtype = (
+            torch.float16 if torch and self._device == "cuda"
+            else torch.float32 if torch
+            else None
+        )
 
         # batch_size=None → tự chọn theo VRAM còn trống sau khi nạp model
         self._batch_size_override = batch_size
@@ -185,8 +207,10 @@ class TranslationEngine:
         # Ép 4-bit hoặc để None cho engine tự quyết theo dung lượng VRAM
         self._load_in_4bit_override = load_in_4bit
 
-        if self._device == "cpu":
-            print("[Engine] ⚠️  Không tìm thấy GPU CUDA — chạy trên CPU sẽ rất chậm.")
+        if torch is None:
+            print("[Engine] Chế độ thư viện sẵn sàng; AI model chưa được cài đặt.")
+        elif self._device == "cpu":
+            print("[Engine] ⚠️  Không tìm thấy GPU CUDA — AI model sẽ chạy rất chậm.")
         else:
             name = torch.cuda.get_device_name(0)
             total = torch.cuda.get_device_properties(0).total_memory / 1024**3
@@ -195,11 +219,15 @@ class TranslationEngine:
     # ──────────────────────────────
     #  Nạp model
     # ──────────────────────────────
+    @staticmethod
+    def is_library_provider(model_name: str) -> bool:
+        return model_name == DEEP_TRANSLATOR_GOOGLE
+
     def _should_quantize(self) -> bool:
         """Quyết định có nén 4-bit không (model 1.7B fp16 ~3.8GB không vừa card 4GB)."""
         if self._load_in_4bit_override is not None:
             return self._load_in_4bit_override
-        if self._device != "cuda":
+        if not torch or self._device != "cuda":
             return False
         total_gb = torch.cuda.get_device_properties(0).total_memory / 1024**3
         return total_gb < 6.0
@@ -235,7 +263,7 @@ class TranslationEngine:
         print(f"[Engine] Unloading {self.current_model_name}...")
         self.model = None
         self.tokenizer = None
-        if torch.cuda.is_available():
+        if torch and torch.cuda.is_available():
             torch.cuda.empty_cache()
         self._model_loaded = False
         self.current_model_name = None
@@ -246,6 +274,28 @@ class TranslationEngine:
             if self._model_loaded and self.current_model_name == model_name:
                 return
             self._unload()
+
+            if self.is_library_provider(model_name):
+                try:
+                    from deep_translator import GoogleTranslator  # noqa: F401
+                except ImportError as exc:
+                    raise RuntimeError(
+                        "Chưa cài deep-translator. Chạy: pip install deep-translator"
+                    ) from exc
+
+                self.current_model_name = model_name
+                self._model_loaded = True
+                self.is_causal = False
+                # Gửi từng đoạn để dễ pause/cancel và hạn chế lỗi rate limit.
+                self.batch_size = 1
+                print("[Engine] Google Translate qua deep-translator đã sẵn sàng.")
+                return
+
+            if torch is None or AutoConfig is None:
+                raise RuntimeError(
+                    "Chế độ AI cần PyTorch và Transformers. "
+                    "Hãy chạy setup_and_run.bat và chọn cài đặt đầy đủ."
+                )
 
             print(f"[Engine] Loading {model_name} on {self._device} ({self._dtype})...")
             start = time.time()
@@ -470,6 +520,22 @@ class TranslationEngine:
             return []
         self._load_model(model_name)
 
+        if self.is_library_provider(model_name):
+            from deep_translator import GoogleTranslator
+
+            source = DEEP_TRANSLATOR_SOURCE_LANGS.get(source_lang, source_lang)
+            translator = GoogleTranslator(source=source, target="vi")
+            translated: list[str] = []
+            for text in texts:
+                processed, mapping = self.glossary.pre_process(text)
+                result = translator.translate(processed)
+                if not result:
+                    raise RuntimeError("Google Translate không trả về nội dung.")
+                translated.append(
+                    self.glossary.post_process(result, mapping).strip()
+                )
+            return translated
+
         if self.is_causal:
             # Model sinh ngôn ngữ nuốt mất placeholder giữa câu, nên thuật ngữ
             # được đưa thẳng vào prompt thay vì thay thế trong text.
@@ -561,14 +627,16 @@ class TranslationEngine:
                 **kwargs,
             )
 
-        # ── Nạp model ──
-        # Báo cho client biết ngay, nếu không giao diện đứng im vài phút và
-        # trông như bị treo trong khi model đang được nạp.
+        # ── Chuẩn bị provider/model ──
         if not (self._model_loaded and self.current_model_name == task.model_name):
             task.status = TaskStatus.LOADING
+            if self.is_library_provider(task.model_name):
+                loading_message = "Đang kết nối Google Translate..."
+            else:
+                loading_message = f"Đang nạp model {task.model_name} vào GPU..."
             yield progress(
                 TaskStatus.LOADING,
-                message=f"Đang nạp model {task.model_name} vào GPU...",
+                message=loading_message,
             )
 
         try:

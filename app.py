@@ -5,6 +5,7 @@ Mount static files, API endpoints, SSE streaming.
 
 import asyncio
 import json
+import os
 from pathlib import Path
 from typing import Optional
 
@@ -16,7 +17,14 @@ from sse_starlette.sse import EventSourceResponse
 
 from scraper import scrape_chapter, parse_direct_text, ChapterData
 from glossary_manager import GlossaryManager
-from translate_engine import TranslationEngine, TaskStatus, DEFAULT_MODEL
+from translate_engine import (
+    TranslationEngine,
+    TaskStatus,
+    DEFAULT_MODEL,
+    DEEP_TRANSLATOR_GOOGLE,
+    AI_RUNTIME_AVAILABLE,
+    DEEP_TRANSLATOR_AVAILABLE,
+)
 from exporter import export_markdown, export_epub, export_txt
 
 
@@ -129,6 +137,26 @@ async def api_parse_text(req: DirectTextRequest):
 # ──────────────────────────────────────────────
 #  Translation API
 # ──────────────────────────────────────────────
+@app.get("/api/config")
+async def api_config():
+    """Cho frontend biết provider nào đã được cài và provider mặc định."""
+    requested_default = os.getenv("DEFAULT_TRANSLATION_PROVIDER", "")
+    if requested_default == DEEP_TRANSLATOR_GOOGLE and DEEP_TRANSLATOR_AVAILABLE:
+        default_provider = DEEP_TRANSLATOR_GOOGLE
+    elif AI_RUNTIME_AVAILABLE:
+        default_provider = DEFAULT_MODEL
+    elif DEEP_TRANSLATOR_AVAILABLE:
+        default_provider = DEEP_TRANSLATOR_GOOGLE
+    else:
+        default_provider = DEFAULT_MODEL
+
+    return {
+        "default_provider": default_provider,
+        "ai_available": AI_RUNTIME_AVAILABLE,
+        "deep_translator_available": DEEP_TRANSLATOR_AVAILABLE,
+    }
+
+
 @app.post("/api/translate/start")
 async def api_translate_start(req: TranslateStartRequest):
     """Đánh dấu task sẵn sàng dịch. Client phải gọi /api/translate/stream để bắt đầu."""
@@ -249,7 +277,12 @@ async def api_edit_translation(task_id: str, req: EditTranslationRequest):
 #  Export API
 # ──────────────────────────────────────────────
 @app.get("/api/export/{task_id}/{fmt}")
-async def api_export(task_id: str, fmt: str, bilingual: bool = False):
+async def api_export(
+    task_id: str,
+    fmt: str,
+    bilingual: bool = False,
+    filename: Optional[str] = None,
+):
     """Xuất file dịch. fmt: md, epub, txt"""
     task = engine.get_task(task_id)
     if not task:
@@ -265,6 +298,7 @@ async def api_export(task_id: str, fmt: str, bilingual: bool = False):
             source_url=task.source_url,
             source_lang=task.source_lang,
             bilingual=bilingual,
+            filename=filename,
         )
     elif fmt == "epub":
         path = export_epub(
@@ -274,12 +308,14 @@ async def api_export(task_id: str, fmt: str, bilingual: bool = False):
             source_url=task.source_url,
             source_lang=task.source_lang,
             bilingual=bilingual,
+            filename=filename,
         )
     elif fmt == "txt":
         path = export_txt(
             title=task.title,
             paragraphs_translated=translated,
             source_url=task.source_url,
+            filename=filename,
         )
     else:
         raise HTTPException(400, f"Unsupported format: {fmt}")

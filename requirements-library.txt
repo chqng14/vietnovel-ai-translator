@@ -1,0 +1,21 @@
+# Chế độ Google Translate qua deep-translator — không cần GPU/PyTorch
+deep-translator>=1.11.4
+
+# Web Framework
+fastapi>=0.141.0
+uvicorn[standard]>=0.52.0
+sse-starlette>=3.4.0
+aiofiles>=25.0.0
+python-multipart>=0.0.20
+
+# Web Scraping
+beautifulsoup4>=4.12.0
+requests>=2.31.0
+lxml>=5.0.0
+cssselect>=1.5.0
+
+# EPUB Generation
+ebooklib>=0.18
+
+# Utilities
+pydantic>=2.9.0

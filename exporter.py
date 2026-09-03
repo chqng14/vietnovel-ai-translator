@@ -3,7 +3,9 @@ exporter.py — Module xuất bản dịch ra file Markdown, EPUB, TXT
 Hỗ trợ tạo file sách với định dạng chuẩn cho máy đọc sách.
 """
 
+import html
 import re
+import unicodedata
 from pathlib import Path
 from datetime import datetime
 from typing import Optional
@@ -17,9 +19,37 @@ STORAGE_DIR.mkdir(exist_ok=True)
 
 def _sanitize_filename(name: str) -> str:
     """Loại bỏ ký tự không hợp lệ trong tên file."""
+    name = unicodedata.normalize("NFC", name)
     name = re.sub(r'[<>:"/\\|?*]', "", name)
     name = re.sub(r"\s+", "_", name.strip())
     return name[:100] if name else "untitled"
+
+
+def _output_path(title: str, filename: Optional[str], extension: str) -> Path:
+    """Tạo đường dẫn output an toàn và tránh lặp phần mở rộng."""
+    requested_name = filename.strip() if filename else title
+    suffix = f".{extension.lower()}"
+    if requested_name.lower().endswith(suffix):
+        requested_name = requested_name[:-len(suffix)]
+    return STORAGE_DIR / f"{_sanitize_filename(requested_name)}{suffix}"
+
+
+def _normalize_epub_text(value: str) -> str:
+    """Chuẩn hóa Unicode và loại ký tự không hợp lệ theo XML 1.0."""
+    normalized = unicodedata.normalize("NFC", str(value or ""))
+    return "".join(
+        char
+        for char in normalized
+        if char in "\t\n\r"
+        or 0x20 <= ord(char) <= 0xD7FF
+        or 0xE000 <= ord(char) <= 0xFFFD
+        or 0x10000 <= ord(char) <= 0x10FFFF
+    )
+
+
+def _escape_epub_text(value: str) -> str:
+    """Chuẩn hóa và escape nội dung trước khi chèn vào XHTML."""
+    return html.escape(_normalize_epub_text(value), quote=True)
 
 
 # ──────────────────────────────────────────────
@@ -32,14 +62,14 @@ def export_markdown(
     source_url: str = "",
     source_lang: str = "en",
     bilingual: bool = False,
+    filename: Optional[str] = None,
 ) -> Path:
     """
     Xuất bản dịch ra file Markdown (.md) với YAML frontmatter.
     Nếu bilingual=True, hiển thị cả nguyên tác và bản dịch.
     """
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    safe_name = _sanitize_filename(title)
-    filepath = STORAGE_DIR / f"{safe_name}.md"
+    filepath = _output_path(title, filename, "md")
 
     lines = [
         "---",
@@ -75,10 +105,10 @@ def export_txt(
     title: str,
     paragraphs_translated: list[str],
     source_url: str = "",
+    filename: Optional[str] = None,
 ) -> Path:
     """Xuất bản dịch ra file TXT đơn giản."""
-    safe_name = _sanitize_filename(title)
-    filepath = STORAGE_DIR / f"{safe_name}.txt"
+    filepath = _output_path(title, filename, "txt")
 
     lines = [
         title,
@@ -157,23 +187,27 @@ def export_epub(
     source_lang: str = "en",
     author: str = "NiuTrans/LMT-60-1.7B",
     bilingual: bool = False,
+    filename: Optional[str] = None,
 ) -> Path:
     """
     Xuất bản dịch ra file EPUB chuẩn cho máy đọc sách.
     Bao gồm bìa, mục lục, CSS đọc sách đẹp.
     """
-    safe_name = _sanitize_filename(title)
-    filepath = STORAGE_DIR / f"{safe_name}.epub"
+    filepath = _output_path(title, filename, "epub")
+    safe_name = filepath.stem
+    clean_title = _normalize_epub_text(title)
+    clean_author = _normalize_epub_text(author)
+    clean_source_url = _normalize_epub_text(source_url)
 
     book = epub.EpubBook()
 
     # ── Metadata ──
     book.set_identifier(f"novel-translator-{safe_name}-{datetime.now().strftime('%Y%m%d%H%M%S')}")
-    book.set_title(title)
+    book.set_title(clean_title)
     book.set_language("vi")
-    book.add_author(author)
-    book.add_metadata("DC", "description", f"Bản dịch tự động từ {source_url}")
-    book.add_metadata("DC", "source", source_url)
+    book.add_author(clean_author)
+    book.add_metadata("DC", "description", f"Bản dịch tự động từ {clean_source_url}")
+    book.add_metadata("DC", "source", clean_source_url)
 
     # ── CSS ──
     css_item = epub.EpubItem(
@@ -188,12 +222,12 @@ def export_epub(
     title_html = f"""<?xml version="1.0" encoding="utf-8"?>
 <!DOCTYPE html>
 <html xmlns="http://www.w3.org/1999/xhtml">
-<head><title>{title}</title><link rel="stylesheet" href="style/default.css"/></head>
+<head><meta charset="utf-8"/><title>{_escape_epub_text(clean_title)}</title><link rel="stylesheet" href="style/default.css"/></head>
 <body>
-<h1>{title}</h1>
-<p class="meta">Dịch bởi: {author}</p>
+<h1>{_escape_epub_text(clean_title)}</h1>
+<p class="meta">Dịch bởi: {_escape_epub_text(clean_author)}</p>
 <p class="meta">Ngày dịch: {datetime.now().strftime('%d/%m/%Y')}</p>
-{"<p class='meta'>Nguồn: " + source_url + "</p>" if source_url else ""}
+{"<p class='meta'>Nguồn: " + _escape_epub_text(clean_source_url) + "</p>" if clean_source_url else ""}
 </body>
 </html>"""
 
@@ -209,10 +243,10 @@ def export_epub(
     # ── Chapter Content ──
     body_parts = []
     for i, translated in enumerate(paragraphs_translated):
-        escaped_translated = translated.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+        escaped_translated = _escape_epub_text(translated)
 
         if bilingual and i < len(paragraphs_original):
-            escaped_original = paragraphs_original[i].replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+            escaped_original = _escape_epub_text(paragraphs_original[i])
             body_parts.append(f"<blockquote>{escaped_original}</blockquote>")
 
         body_parts.append(f"<p>{escaped_translated}</p>")
@@ -220,15 +254,15 @@ def export_epub(
     chapter_html = f"""<?xml version="1.0" encoding="utf-8"?>
 <!DOCTYPE html>
 <html xmlns="http://www.w3.org/1999/xhtml">
-<head><title>{title}</title><link rel="stylesheet" href="style/default.css"/></head>
+<head><meta charset="utf-8"/><title>{_escape_epub_text(clean_title)}</title><link rel="stylesheet" href="style/default.css"/></head>
 <body>
-<h1>{title}</h1>
+<h1>{_escape_epub_text(clean_title)}</h1>
 {"".join(body_parts)}
 </body>
 </html>"""
 
     chapter = epub.EpubHtml(
-        title=title,
+        title=clean_title,
         file_name="chapter_01.xhtml",
         lang="vi",
     )
@@ -239,7 +273,7 @@ def export_epub(
     # ── Table of Contents & Spine ──
     book.toc = [
         epub.Link("title.xhtml", "Trang bìa", "title"),
-        epub.Link("chapter_01.xhtml", title, "chapter_01"),
+        epub.Link("chapter_01.xhtml", clean_title, "chapter_01"),
     ]
 
     book.add_item(epub.EpubNcx())

@@ -43,11 +43,12 @@
 					<button class="input-tab" data-tab="text" onclick="switchTab('text')">📝 Dán văn bản</button>
 				</div>
 				<label class="field-inline" for="select-model">
-					<span class="field-label">🤖 Model dịch</span>
-					<select class="input-field" id="select-model" style="max-width: 260px;"
-						title="Lần dịch đầu tiên sẽ mất vài phút để nạp model vào GPU">
-						<option value="NiuTrans/LMT-60-1.7B">NiuTrans/LMT-60-1.7B — khuyên dùng</option>
-						<option value="deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B">DeepSeek-R1-Distill-1.5B</option>
+					<span class="field-label">🌐 Công cụ dịch</span>
+					<select class="input-field" id="select-model" style="max-width: 320px;"
+						title="Chọn model AI local hoặc thư viện dịch trực tuyến">
+						<option value="NiuTrans/LMT-60-1.7B" data-runtime="ai">NiuTrans/LMT-60-1.7B — khuyên dùng</option>
+						<option value="deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B" data-runtime="ai">DeepSeek-R1-Distill-1.5B</option>
+						<option value="deep-translator/google" data-runtime="library">Google Translate — không cần GPU</option>
 					</select>
 				</label>
 			</div>

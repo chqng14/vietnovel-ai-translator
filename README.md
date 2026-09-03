@@ -27,6 +27,12 @@
 - Hỗ trợ **Pause / Resume / Cancel** — điều khiển linh hoạt
 - Tự lùi batch size khi hết VRAM thay vì crash giữa chừng
 
+### 🌐 Dịch không cần GPU (deep-translator)
+- Tùy chọn **Google Translate** ngay trên giao diện, không tải model local
+- Chạy được với bộ cài nhẹ, không cần PyTorch, CUDA hoặc card NVIDIA
+- Hỗ trợ Anh, Nhật, Trung, Hàn → Việt và vẫn áp dụng glossary
+- Cần kết nối Internet; nội dung dịch được gửi tới dịch vụ Google Translate
+
 ### 📚 Quản lý Thuật ngữ (Glossary)
 - Thêm/xóa/sửa thuật ngữ & tên riêng (VD: `Sword Saint → Kiếm Thánh`)
 - Thuật ngữ được đưa thẳng vào prompt (model CausalLM) hoặc thay bằng placeholder (model Seq2Seq)
@@ -45,11 +51,44 @@
 | **EPUB (.epub)** | Bìa sách, mục lục, CSS đọc sách — cho Kindle, Kobo, Boox |
 | **TXT (.txt)** | Plain text đơn giản |
 
+Khi chọn định dạng xuất, ứng dụng sẽ hỏi tên file và tự thêm phần mở rộng phù
+hợp. Tên file tiếng Việt được hỗ trợ. Nội dung EPUB được chuẩn hóa Unicode NFC,
+lọc ký tự XML không hợp lệ và mã hóa UTF-8 để tránh lỗi dấu tiếng Việt.
+
 ---
 
 ## 🚀 Cài đặt & Khởi chạy
 
-### Yêu cầu hệ thống
+### Cài nhanh trên Windows
+
+Nhấp đúp `setup_and_run.bat`. Script hiển thị menu tiếng Anh với các lựa chọn:
+
+- `[1]` Google Translate — bản nhẹ, không cần GPU
+- `[2]` AI local — cài PyTorch CUDA và toàn bộ dependencies
+- `[3]` Chạy ứng dụng và mở `http://localhost:8000`
+
+Script tự tạo `.venv`, cài đúng nhóm dependency và mở trình duyệt khi chạy app.
+Nếu PyTorch/Transformers chưa được cài, ứng dụng vẫn khởi động bình thường và
+**Google Translate tự động trở thành công cụ dịch mặc định**. Các lựa chọn AI
+local sẽ bị vô hiệu hóa trên giao diện cho đến khi cài chế độ `[2]`.
+
+### Cài thủ công — Google Translate không GPU
+
+```bash
+python -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements-library.txt
+python app.py
+```
+
+Sau khi mở `http://localhost:8000`, chọn **Google Translate — không cần GPU**.
+Chế độ này cần Internet và gửi nội dung cần dịch tới Google Translate.
+Khi chỉ cài `requirements-library.txt`, giao diện sẽ tự chọn tùy chọn này và
+không yêu cầu cài thêm PyTorch hay Transformers.
+
+Các bước tiếp theo dành cho chế độ AI local.
+
+### Yêu cầu hệ thống cho AI local
 - **Python** 3.14+
 - **GPU NVIDIA** có CUDA — xem bảng VRAM bên dưới
 - **CUDA Toolkit** 12.x (tương thích qua driver)
@@ -115,6 +154,9 @@ python translate.py --url "https://..." --model "deepseek-ai/DeepSeek-R1-Distill
 # Dịch text trực tiếp → TXT
 python translate.py --text "Hello world" --format txt
 
+# Dịch qua Google Translate, không cần GPU
+python translate.py --text "Hello world" --model "deep-translator/google" --format txt
+
 # Dịch từ file
 python translate.py --file chapter.txt --lang en --format epub --bilingual
 ```
@@ -167,6 +209,8 @@ Dịch/
 ├── exporter.py               # 📦 Exporter — tạo file MD, EPUB, TXT
 ├── translate.py              # 💻 CLI Script — dịch truyện từ command line
 ├── requirements.txt          # 📋 Dependencies
+├── requirements-library.txt  # 📋 Bộ cài nhẹ cho Google Translate
+├── setup_and_run.bat         # 🪟 Menu cài đặt và chạy trên Windows
 ├── static/
 │   ├── index.html            # 🌐 Giao diện web (SPA)
 │   ├── style.css             # 🎨 Dark glassmorphic design system
@@ -215,7 +259,7 @@ xong, để giao diện không đứng im.
 ### Export
 | Method | Endpoint | Mô tả |
 |--------|----------|-------|
-| `GET` | `/api/export/{task_id}/{fmt}` | Tải file (`md`, `epub`, `txt`). Query: `?bilingual=true` |
+| `GET` | `/api/export/{task_id}/{fmt}` | Tải file (`md`, `epub`, `txt`). Query: `?bilingual=true&filename=ten_file` |
 
 ### Glossary
 | Method | Endpoint | Mô tả |
