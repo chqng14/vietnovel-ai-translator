@@ -47,7 +47,7 @@
 					<select class="input-field" id="select-model" style="max-width: 320px;"
 						title="Chọn model AI local hoặc thư viện dịch trực tuyến">
 						<option value="NiuTrans/LMT-60-1.7B" data-runtime="ai">NiuTrans/LMT-60-1.7B — khuyên dùng</option>
-						<option value="deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B" data-runtime="ai">DeepSeek-R1-Distill-1.5B</option>
+						<option value="Qwen/Qwen3-0.6B" data-runtime="ai">Qwen3-0.6B — siêu nhẹ (~1.4 GB)</option>
 						<option value="deep-translator/google" data-runtime="library">Google Translate — không cần GPU</option>
 					</select>
 				</label>
@@ -82,6 +82,12 @@
 							<span class="spinner hidden" id="spinner-parse"></span> 📋 Xử lý & Dịch </button>
 					</div>
 				</div>
+			</div>
+			<div class="input-group" style="flex-direction: column; margin-top: 16px;">
+				<label class="field-label" for="input-story-context">📖 Mô tả / bối cảnh truyện (tùy chọn)</label>
+				<textarea class="input-field" id="input-story-context" rows="3" maxlength="800"
+					placeholder="Ví dụ: Truyện fantasy trung cổ. Subaru là nam, Emilia là nữ. Giữ giọng kể trang trọng và tên kỹ năng bằng tiếng Anh."></textarea>
+				<div class="text-sm text-muted">AI local dùng mô tả này để hiểu nhân vật và văn phong. Google Translate không sử dụng.</div>
 			</div>
 		</section>
 		<!-- ═══════ GLOSSARY SECTION ═══════ -->

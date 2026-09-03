@@ -65,6 +65,11 @@ Ví dụ:
             "Google Translate mà không cần GPU"
         ),
     )
+    parser.add_argument(
+        "--context",
+        default="",
+        help="Mô tả ngắn về bối cảnh, nhân vật và văn phong của truyện",
+    )
 
     args = parser.parse_args()
 
@@ -142,7 +147,12 @@ Ví dụ:
         need = [t for t in chunk if engine._needs_translation(t)]
         done = {}
         if need:
-            results = engine.translate_batch(need, chapter.source_lang, args.model)
+            results = engine.translate_batch(
+                need,
+                chapter.source_lang,
+                args.model,
+                args.context,
+            )
             done = dict(zip(need, results))
         translated.extend(done.get(t, t) for t in chunk)
 

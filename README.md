@@ -3,9 +3,9 @@
 <div align="center">
 
 **Ứng dụng web dịch truyện tự động từ link web sang Tiếng Việt**
-**sử dụng model NiuTrans/LMT-60-1.7B trên GPU**
+**hỗ trợ Qwen3-0.6B siêu nhẹ, NiuTrans và Google Translate**
 
-`FastAPI` · `PyTorch CUDA` · `NiuTrans` · `SSE Streaming` · `EPUB Export`
+`FastAPI` · `PyTorch CUDA` · `Qwen3` · `NiuTrans` · `SSE Streaming` · `EPUB Export`
 
 </div>
 
@@ -18,10 +18,11 @@
 - **Hỗ trợ:** Witch Cult Translations, Syosetu (なろう), Kakuyomu, RoyalRoad, và bất kỳ trang HTML nào (parser mặc định)
 - Loại bỏ quảng cáo, thanh điều hướng, donate banner — chỉ giữ lại nội dung truyện
 
-### 🤖 Dịch thuật AI (NiuTrans & DeepSeek)
+### 🤖 Dịch thuật AI (NiuTrans & Qwen3)
 - Chạy trên **GPU NVIDIA** với chế độ `float16`, tuỳ chọn nén **4-bit** cho card VRAM thấp
-- Hỗ trợ **NiuTrans/LMT-60-1.7B** và **DeepSeek-R1-Distill-Qwen-1.5B**
+- Hỗ trợ **NiuTrans/LMT-60-1.7B** và **Qwen3-0.6B** (~1.4 GB)
 - Chọn model ngay trên giao diện web hoặc qua tham số dòng lệnh
+- Nhận mô tả bối cảnh truyện để giữ đúng giới tính, thế giới và văn phong
 - Dịch **paragraph-by-paragraph** — bảo toàn 100% bố cục gốc
 - **Dịch theo batch**, bỏ qua dòng phân cách, cache đoạn trùng lặp
 - Hỗ trợ **Pause / Resume / Cancel** — điều khiển linh hoạt
@@ -64,13 +65,37 @@ lọc ký tự XML không hợp lệ và mã hóa UTF-8 để tránh lỗi dấu
 Nhấp đúp `setup_and_run.bat`. Script hiển thị menu tiếng Anh với các lựa chọn:
 
 - `[1]` Google Translate — bản nhẹ, không cần GPU
-- `[2]` AI local — cài PyTorch CUDA và toàn bộ dependencies
+- `[2]` AI local — cài dependencies, chọn và tải model
 - `[3]` Chạy ứng dụng và mở `http://localhost:8000`
 
 Script tự tạo `.venv`, cài đúng nhóm dependency và mở trình duyệt khi chạy app.
 Nếu PyTorch/Transformers chưa được cài, ứng dụng vẫn khởi động bình thường và
 **Google Translate tự động trở thành công cụ dịch mặc định**. Các lựa chọn AI
 local sẽ bị vô hiệu hóa trên giao diện cho đến khi cài chế độ `[2]`.
+
+Dependencies được lưu trong thư mục `.venv` ngay tại project. Chỉ cần chọn `[1]`
+hoặc `[2]` trong lần cài đầu tiên; những lần sau mở script và chọn `[3]`. Nếu chọn
+lại mục cài đặt, script sẽ kiểm tra các package và bỏ qua download khi đã đầy đủ.
+
+Trong mục `[2]`, người dùng chọn `Qwen3-0.6B` hoặc `NiuTrans LMT-60-1.7B`.
+Model được lưu trong Hugging Face cache; file đã có sẽ được tái sử dụng.
+**Qwen3-0.6B luôn là model AI mặc định khi đã tải**; tải thêm NiuTrans không
+thay đổi mặc định. Nếu đã tải nhiều model,
+dropdown trên giao diện cho phép chọn model dùng cho từng lần dịch; model chưa
+tải sẽ bị vô hiệu hóa. Nếu chưa có Qwen3, ứng dụng dùng model đã tải hoặc Google
+Translate khi runtime AI chưa được cài.
+
+### Gỡ cài đặt và giải phóng dung lượng
+
+Mở `setup_and_run.bat` và chọn `[5] Uninstall models or dependencies`. Menu cho
+phép gỡ riêng cache của Qwen3 hoặc NiuTrans; gỡ các package AI nhưng
+giữ model; gỡ `deep-translator`; hoặc xóa toàn bộ `.venv`. Mỗi thao tác đều hỏi
+xác nhận trước khi xóa. Cache model dùng chung của Hugging Face chỉ bị xóa khi
+người dùng chọn đúng model tương ứng; xóa cache có thể ảnh hưởng project khác
+đang dùng cùng model.
+
+> File BAT phải giữ line ending Windows `CRLF` (được khóa bằng `.gitattributes`)
+> để các lệnh `goto` hoạt động chính xác trong `cmd.exe`.
 
 ### Cài thủ công — Google Translate không GPU
 
@@ -97,6 +122,9 @@ Các bước tiếp theo dành cho chế độ AI local.
 ### ⚠️ VRAM — đọc trước khi cài
 
 Model `LMT-60-1.7B` ở `float16` chiếm **~3.8 GB VRAM**. Đây là điểm quyết định tốc độ:
+
+Nếu ưu tiên dung lượng, chọn `Qwen/Qwen3-0.6B`: file weight khoảng **1.4 GB**,
+chạy nhanh và nhẹ hơn nhưng chất lượng/văn phong có thể kém NiuTrans 1.7B.
 
 | VRAM GPU | Khuyến nghị |
 |----------|-------------|
@@ -148,8 +176,8 @@ Mở trình duyệt tại: **http://localhost:8000**
 # Dịch từ URL → Markdown (model mặc định)
 python translate.py --url "https://witchculttranslation.com/..." --format md
 
-# Dịch bằng DeepSeek-R1-Distill-1.5B
-python translate.py --url "https://..." --model "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B" --format epub
+# Model siêu nhẹ kèm bối cảnh truyện
+python translate.py --file chapter.txt --model "Qwen/Qwen3-0.6B" --context "Fantasy trung cổ; giữ giọng kể trang trọng" --format epub
 
 # Dịch text trực tiếp → TXT
 python translate.py --text "Hello world" --format txt
@@ -232,7 +260,7 @@ Dịch/
 ### Translation
 | Method | Endpoint | Mô tả |
 |--------|----------|-------|
-| `POST` | `/api/translate/start` | Đánh dấu task sẵn sàng dịch (nhận `model_name`) |
+| `POST` | `/api/translate/start` | Đánh dấu task sẵn sàng dịch (nhận `model_name`, `story_context`) |
 | `GET` | `/api/translate/stream/{task_id}` | **SSE stream** — chạy dịch + stream tiến độ real-time |
 | `POST` | `/api/translate/pause/{task_id}` | Tạm dừng |
 | `POST` | `/api/translate/resume/{task_id}` | Tiếp tục |
@@ -294,7 +322,7 @@ graph TD
     A["🌐 Web Frontend<br/>(HTML/CSS/JS)"] -->|"URL / Text / Glossary<br/>+ Model Selection"| B["⚡ FastAPI Server<br/>(app.py)"]
     B --> C["🔍 Scraper<br/>(scraper.py)"]
     C -->|"Paragraphs"| D["🤖 Translation Engine<br/>(translate_engine.py)"]
-    D -->|"Load Model"| E["NiuTrans / DeepSeek<br/>(PyTorch CUDA fp16 / 4-bit)"]
+    D -->|"Load Model"| E["NiuTrans / Qwen3<br/>(PyTorch CUDA fp16 / 4-bit)"]
     D -->|"Apply Terms"| F["📚 Glossary Manager<br/>(glossary_manager.py)"]
     D -->|"SSE Stream"| A
     D -->|"Completed"| G["📦 Exporter<br/>(exporter.py)"]
@@ -350,7 +378,7 @@ khai báo thủ công là seq2seq hay causal:
 ```python
 # Trong translate_engine.py:
 
-DEFAULT_MODEL = "NiuTrans/LMT-60-1.7B"   # ← đổi ở đây
+DEFAULT_MODEL = "Qwen/Qwen3-0.6B"   # ← model siêu nhẹ mặc định
 ```
 
 Khi thay bằng model khác, cần kiểm tra:
@@ -396,7 +424,7 @@ Engine dùng hai cơ chế khác nhau tuỳ kiểu model:
 
 | Kiểu model | Cơ chế | Ghi chú |
 |-----------|--------|---------|
-| **CausalLM** (LMT-60, DeepSeek) | Liệt kê thuật ngữ ngay trong prompt | Chỉ những thuật ngữ thực sự xuất hiện trong đoạn mới được đưa vào, nên prompt không phình ra |
+| **CausalLM** (LMT-60, Qwen3) | Liệt kê thuật ngữ ngay trong prompt | Chỉ những thuật ngữ thực sự xuất hiện trong đoạn mới được đưa vào, nên prompt không phình ra |
 | **Seq2Seq** (NLLB, Marian…) | Thay bằng placeholder rồi khôi phục | Model dịch máy bảo toàn được placeholder |
 
 > Cơ chế placeholder **không dùng được** với model sinh ngôn ngữ: nó viết lại
@@ -410,7 +438,9 @@ Engine dùng hai cơ chế khác nhau tuỳ kiểu model:
 
 | Biến | Vị trí | Mặc định | Mô tả |
 |------|--------|----------|-------|
-| `DEFAULT_MODEL` | `translate_engine.py` | `NiuTrans/LMT-60-1.7B` | Model HuggingFace mặc định |
+| `DEFAULT_MODEL` | `translate_engine.py` | `Qwen/Qwen3-0.6B` | Model HuggingFace mặc định |
+| `LIGHTWEIGHT_MODEL` | `translate_engine.py` | `Qwen/Qwen3-0.6B` | Model AI siêu nhẹ khoảng 1.4 GB |
+| `MAX_STORY_CONTEXT_CHARS` | `translate_engine.py` | `800` | Giới hạn ký tự mô tả bối cảnh truyện |
 | `MAX_INPUT_TOKENS` | `translate_engine.py` | `768` | Giới hạn token đầu vào mỗi đoạn |
 | `MAX_NEW_TOKENS_CAP` | `translate_engine.py` | `512` | Trần cứng token sinh ra mỗi đoạn |
 | `SYSTEM_PROMPT` | `translate_engine.py` | *(xem file)* | Chỉ dẫn cho model dịch (viết bằng tiếng Việt) |

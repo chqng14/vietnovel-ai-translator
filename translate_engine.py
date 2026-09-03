@@ -45,8 +45,14 @@ from glossary_manager import GlossaryManager
 # ──────────────────────────────────────────────
 #  Cấu hình
 # ──────────────────────────────────────────────
-DEFAULT_MODEL = "NiuTrans/LMT-60-1.7B"
+LIGHTWEIGHT_MODEL = "Qwen/Qwen3-0.6B"
+DEFAULT_MODEL = LIGHTWEIGHT_MODEL
 DEEP_TRANSLATOR_GOOGLE = "deep-translator/google"
+
+AVAILABLE_AI_MODELS = (
+    LIGHTWEIGHT_MODEL,
+    "NiuTrans/LMT-60-1.7B",
+)
 
 DEEP_TRANSLATOR_SOURCE_LANGS = {
     "en": "en",
@@ -55,8 +61,24 @@ DEEP_TRANSLATOR_SOURCE_LANGS = {
     "ko": "ko",
 }
 
+
+def get_downloaded_ai_models() -> list[str]:
+    """Trả về model trong catalog đã có trong Hugging Face cache local."""
+    if not AI_RUNTIME_AVAILABLE:
+        return []
+    try:
+        from huggingface_hub import scan_cache_dir
+
+        cached_repos = {repo.repo_id for repo in scan_cache_dir().repos}
+        return [model for model in AVAILABLE_AI_MODELS if model in cached_repos]
+    except Exception:
+        # Cache lỗi/không đọc được không được phép ngăn ứng dụng khởi động.
+        return []
+
 # Số token tối đa cho phần input của một đoạn
 MAX_INPUT_TOKENS = 768
+# Giới hạn mô tả truyện để không chiếm hết context dành cho đoạn cần dịch.
+MAX_STORY_CONTEXT_CHARS = 800
 # Trần cứng cho số token sinh ra mỗi đoạn (chống sinh lan man vô hạn)
 MAX_NEW_TOKENS_CAP = 512
 # Hệ số ước lượng: bản dịch tiếng Việt dài hơn bản gốc bao nhiêu lần
@@ -141,6 +163,7 @@ class TranslationTask:
     paragraphs_original: list[str]
     paragraphs_translated: dict[int, str] = field(default_factory=dict)
     model_name: str = DEFAULT_MODEL
+    story_context: str = ""
     status: TaskStatus = TaskStatus.PENDING
     error_message: str = ""
     # Control flags
@@ -317,6 +340,8 @@ class TranslationEngine:
                 # Batch generation với decoder-only bắt buộc pad bên trái,
                 # nếu không phần sinh ra sẽ lệch khỏi prompt.
                 padding_side="left" if is_causal else "right",
+                # Khi prompt dài, ưu tiên giữ đoạn hiện tại và assistant prefill.
+                truncation_side="left" if is_causal else "right",
             )
             if self.tokenizer.pad_token is None:
                 self.tokenizer.pad_token = self.tokenizer.eos_token
@@ -396,6 +421,7 @@ class TranslationEngine:
         text: str,
         source_lang: str,
         terms: Optional[list[tuple[str, str]]] = None,
+        story_context: str = "",
     ) -> str:
         if not self.is_causal:
             lang = LANGUAGE_NAMES.get(source_lang, source_lang.upper())
@@ -404,6 +430,14 @@ class TranslationEngine:
         lang_vi = LANGUAGE_NAMES_VI.get(source_lang, source_lang.upper())
 
         parts: list[str] = []
+        clean_context = story_context.strip()[:MAX_STORY_CONTEXT_CHARS]
+        if clean_context:
+            parts.append(
+                "Bối cảnh chung của truyện (chỉ dùng để hiểu nhân vật, thế giới "
+                "và văn phong; không tự thêm chi tiết vào bản dịch):"
+            )
+            parts.append(clean_context)
+            parts.append("")
         if terms:
             # Model instruct nuốt mất placeholder chèn giữa câu, nên thuật ngữ
             # được nêu thành danh sách ngay trong prompt.
@@ -514,6 +548,7 @@ class TranslationEngine:
         texts: list[str],
         source_lang: str = "en",
         model_name: str = DEFAULT_MODEL,
+        story_context: str = "",
     ) -> list[str]:
         """Dịch một nhóm đoạn văn. Trả về danh sách cùng thứ tự với đầu vào."""
         if not texts:
@@ -540,7 +575,12 @@ class TranslationEngine:
             # Model sinh ngôn ngữ nuốt mất placeholder giữa câu, nên thuật ngữ
             # được đưa thẳng vào prompt thay vì thay thế trong text.
             prompts = [
-                self._build_prompt(t, source_lang, self.glossary.find_terms(t))
+                self._build_prompt(
+                    t,
+                    source_lang,
+                    self.glossary.find_terms(t),
+                    story_context,
+                )
                 for t in texts
             ]
             return [r.strip() for r in self._generate_with_oom_retry(prompts)]
@@ -565,11 +605,14 @@ class TranslationEngine:
         text: str,
         source_lang: str = "en",
         model_name: str = DEFAULT_MODEL,
+        story_context: str = "",
     ) -> str:
         """Dịch một đoạn. Giữ lại cho CLI (translate.py)."""
         if not self._needs_translation(text):
             return text
-        return self.translate_batch([text], source_lang, model_name)[0]
+        return self.translate_batch(
+            [text], source_lang, model_name, story_context
+        )[0]
 
     # ──────────────────────────────
     #  Quản lý task
@@ -581,6 +624,7 @@ class TranslationEngine:
         source_url: str = "",
         source_lang: str = "en",
         model_name: str = DEFAULT_MODEL,
+        story_context: str = "",
     ) -> str:
         """Tạo task dịch mới. Trả về task_id."""
         task_id = str(uuid.uuid4())[:8]
@@ -591,6 +635,7 @@ class TranslationEngine:
             source_lang=source_lang,
             paragraphs_original=paragraphs,
             model_name=model_name,
+            story_context=story_context.strip()[:MAX_STORY_CONTEXT_CHARS],
         )
         self.tasks[task_id] = task
         return task_id
@@ -699,6 +744,7 @@ class TranslationEngine:
                         todo,
                         task.source_lang,
                         task.model_name,
+                        task.story_context,
                     )
                     seen.update(zip(todo, results))
 

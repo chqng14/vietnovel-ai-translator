@@ -24,6 +24,9 @@ from translate_engine import (
     DEEP_TRANSLATOR_GOOGLE,
     AI_RUNTIME_AVAILABLE,
     DEEP_TRANSLATOR_AVAILABLE,
+    MAX_STORY_CONTEXT_CHARS,
+    LIGHTWEIGHT_MODEL,
+    get_downloaded_ai_models,
 )
 from exporter import export_markdown, export_epub, export_txt
 
@@ -69,6 +72,7 @@ class TranslateStartRequest(BaseModel):
     source_url: str = ""
     source_lang: str = "en"
     model_name: str = DEFAULT_MODEL
+    story_context: str = ""
 
 class GlossaryAddRequest(BaseModel):
     source: str
@@ -141,10 +145,14 @@ async def api_parse_text(req: DirectTextRequest):
 async def api_config():
     """Cho frontend biết provider nào đã được cài và provider mặc định."""
     requested_default = os.getenv("DEFAULT_TRANSLATION_PROVIDER", "")
+    downloaded_models = get_downloaded_ai_models()
     if requested_default == DEEP_TRANSLATOR_GOOGLE and DEEP_TRANSLATOR_AVAILABLE:
         default_provider = DEEP_TRANSLATOR_GOOGLE
     elif AI_RUNTIME_AVAILABLE:
-        default_provider = DEFAULT_MODEL
+        if LIGHTWEIGHT_MODEL in downloaded_models or not downloaded_models:
+            default_provider = LIGHTWEIGHT_MODEL
+        else:
+            default_provider = downloaded_models[0]
     elif DEEP_TRANSLATOR_AVAILABLE:
         default_provider = DEEP_TRANSLATOR_GOOGLE
     else:
@@ -154,6 +162,7 @@ async def api_config():
         "default_provider": default_provider,
         "ai_available": AI_RUNTIME_AVAILABLE,
         "deep_translator_available": DEEP_TRANSLATOR_AVAILABLE,
+        "downloaded_ai_models": downloaded_models,
     }
 
 
@@ -171,6 +180,7 @@ async def api_translate_start(req: TranslateStartRequest):
             source_url=req.source_url,
             source_lang=req.source_lang,
             model_name=req.model_name,
+            story_context=req.story_context,
         )
 
     task = engine.get_task(task_id)
@@ -178,6 +188,7 @@ async def api_translate_start(req: TranslateStartRequest):
         raise HTTPException(404, "Task not found")
 
     task.model_name = req.model_name
+    task.story_context = req.story_context.strip()[:MAX_STORY_CONTEXT_CHARS]
 
     return {"task_id": task_id, "status": "ready"}
 

@@ -306,11 +306,13 @@ async function startTranslation() {
   if (!state.taskId) return;
 
   const modelName = document.getElementById('select-model').value;
+  const storyContext = document.getElementById('input-story-context').value.trim();
 
   // Đánh dấu task sẵn sàng
   await apiPost('/api/translate/start', { 
     task_id: state.taskId,
-    model_name: modelName
+    model_name: modelName,
+    story_context: storyContext
   });
 
   state.status = 'translating';
@@ -878,9 +880,16 @@ async function loadRuntimeConfig() {
   try {
     const config = await apiGet('/api/config');
     const select = document.getElementById('select-model');
+    const downloadedModels = new Set(config.downloaded_ai_models || []);
+    const restrictToDownloaded = downloadedModels.size > 0;
 
     select.querySelectorAll('[data-runtime="ai"]').forEach(option => {
-      option.disabled = !config.ai_available;
+      option.disabled = !config.ai_available || (
+        restrictToDownloaded && !downloadedModels.has(option.value)
+      );
+      if (option.disabled && config.ai_available && restrictToDownloaded) {
+        option.title = 'Model chưa được tải. Dùng setup_and_run.bat để tải.';
+      }
     });
     select.querySelectorAll('[data-runtime="library"]').forEach(option => {
       option.disabled = !config.deep_translator_available;
