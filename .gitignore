@@ -1,0 +1,43 @@
+# Python bytecode and caches
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+
+# IDE and OS files
+.vscode/
+.idea/
+*.code-workspace
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Runtime logs and temporary files
+*.log
+*.tmp
+*.bak
+~$*
+
+# Generated translations
+storage/*
+!storage/.gitkeep
+!storage/glossary.example.json
+
+# Local model/cache directories (if configured inside the project)
+.cache/
+models/
+huggingface/

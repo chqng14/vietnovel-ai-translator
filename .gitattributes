@@ -1,1 +1,24 @@
-*.bat text eol=crlf
+* text=auto
+.gitattributes text eol=lf
+.gitignore     text eol=lf
+
+# Python, web assets and documentation use LF in Git.
+*.py   text eol=lf
+*.js   text eol=lf
+*.css  text eol=lf
+*.html text eol=lf
+*.md   text eol=lf
+*.txt  text eol=lf
+*.json text eol=lf
+
+# Windows command scripts require CRLF for reliable cmd.exe labels/goto.
+*.bat  text eol=crlf
+*.cmd  text eol=crlf
+
+# Generated binary documents must never be line-ending normalized.
+*.epub binary
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.ico  binary

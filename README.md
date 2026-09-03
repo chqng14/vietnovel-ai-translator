@@ -501,11 +501,31 @@ Quy trình đề xuất:
 Không commit model cache, secret, `__pycache__/` hoặc file đầu ra phát sinh trong
 `storage/`.
 
+### Khởi tạo Git cho bản sao mới
+
+Project đã có `.gitignore` để bỏ qua môi trường ảo, cache Python, model local,
+secret và file dịch sinh trong `storage/`. File `storage/glossary.example.json`
+được giữ lại làm mẫu; `storage/glossary.json` là dữ liệu cá nhân nên không được
+commit.
+
+```bash
+git init
+git branch -M main
+git add .
+git commit -m "chore: initialize project"
+git remote add origin https://github.com/<user>/<repository>.git
+git push -u origin main
+```
+
+Nếu clone từ repository hiện có thì không cần chạy `git init`; chỉ cần cài đặt
+dependencies theo phần trên. Kiểm tra trước mỗi commit bằng `git status` để bảo
+đảm không có model, secret hoặc file đầu ra bị thêm nhầm.
+
 ---
 
 ## 📄 License
 
-MIT — Tự do sử dụng và phát triển.
+[MIT](LICENSE) — Tự do sử dụng và phát triển theo các điều khoản trong file giấy phép.
 
 ---
 
