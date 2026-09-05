@@ -1,5 +1,7 @@
 # 📖 Novel Translator — Dịch Truyện Tự Động bằng AI
 
+**[Tiếng Việt](README.md) | [English](README_EN.md)**
+
 <div align="center">
 
 **Ứng dụng web dịch truyện tự động từ link web sang Tiếng Việt**
